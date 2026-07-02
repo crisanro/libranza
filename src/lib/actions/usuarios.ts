@@ -134,3 +134,31 @@ export async function crearUsuario(params: {
 
   return nuevo;
 }
+
+// ================================================
+// CREAR TENANT (registro de nuevo usuario)
+// ================================================
+export async function crearTenant(params: {
+  firebaseUid: string;
+  nombre: string;
+  email: string;
+}) {
+  const { firebaseUid, nombre, email } = params;
+
+  const existente = await db.query.tenants.findFirst({
+    where: eq(tenants.firebaseUid, firebaseUid),
+  });
+
+  if (existente) return existente;
+
+  const [nuevo] = await db
+    .insert(tenants)
+    .values({
+      firebaseUid,
+      nombre,
+      email,
+    })
+    .returning();
+
+  return nuevo;
+}
