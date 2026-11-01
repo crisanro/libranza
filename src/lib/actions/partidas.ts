@@ -1,19 +1,26 @@
 // src/lib/actions/partidas.ts
 "use server";
 
+import { z } from "zod";
 import { db } from "@/lib/db/client";
-import { usuarios, partidas, transacciones } from "@/lib/db/schema";
+import { usuarios, partidas } from "@/lib/db/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
-import { getTenant } from "./usuarios";
+import { getTenant } from "@/lib/tenant";
+import * as v from "@/lib/validacion";
 
 // ================================================
 // LISTAR PARTIDAS DE UN USUARIO
 // ================================================
+const esquemaListar = z.object({
+  idToken:   v.idToken,
+  usuarioId: v.id,
+});
+
 export async function listarPartidas(params: {
   idToken: string;
   usuarioId: string;
 }) {
-  const { idToken, usuarioId } = params;
+  const { idToken, usuarioId } = v.validar(esquemaListar, params);
   const tenant = await getTenant(idToken);
 
   const usuario = await db.query.usuarios.findFirst({
@@ -36,6 +43,7 @@ export async function listarPartidas(params: {
     FROM partidas p
     LEFT JOIN transacciones t ON t.partida_id = p.id
     WHERE p.usuario_id = ${usuarioId}
+      AND p.tenant_id = ${tenant.id}
       AND p.anulado_at IS NULL
     GROUP BY p.id
     ORDER BY p.created_at DESC
@@ -56,13 +64,18 @@ export async function listarPartidas(params: {
 // ================================================
 // CREAR PARTIDA
 // ================================================
+const esquemaCrear = z.object({
+  idToken:   v.idToken,
+  usuarioId: v.id,
+  nombre:    v.nombre,
+});
+
 export async function crearPartida(params: {
   idToken: string;
   usuarioId: string;
   nombre: string;
 }) {
-  const { idToken, usuarioId, nombre } = params;
-  if (!nombre.trim()) throw new Error("El nombre es obligatorio");
+  const { idToken, usuarioId, nombre } = v.validar(esquemaCrear, params);
 
   const tenant = await getTenant(idToken);
 
@@ -80,7 +93,7 @@ export async function crearPartida(params: {
     .values({
       usuarioId,
       tenantId: tenant.id,
-      nombre:   nombre.trim(),
+      nombre,
     })
     .returning();
 
@@ -90,19 +103,24 @@ export async function crearPartida(params: {
 // ================================================
 // RENOMBRAR PARTIDA
 // ================================================
+const esquemaRenombrar = z.object({
+  idToken:   v.idToken,
+  partidaId: v.id,
+  nombre:    v.nombre,
+});
+
 export async function renombrarPartida(params: {
   idToken: string;
   partidaId: string;
   nombre: string;
 }) {
-  const { idToken, partidaId, nombre } = params;
-  if (!nombre.trim()) throw new Error("El nombre no puede quedar vacío");
+  const { idToken, partidaId, nombre } = v.validar(esquemaRenombrar, params);
 
   const tenant = await getTenant(idToken);
 
   const [actualizada] = await db
     .update(partidas)
-    .set({ nombre: nombre.trim() })
+    .set({ nombre })
     .where(
       and(
         eq(partidas.id, partidaId),
@@ -119,11 +137,16 @@ export async function renombrarPartida(params: {
 // ================================================
 // ANULAR PARTIDA (soft delete)
 // ================================================
+const esquemaAnular = z.object({
+  idToken:   v.idToken,
+  partidaId: v.id,
+});
+
 export async function anularPartida(params: {
   idToken: string;
   partidaId: string;
 }) {
-  const { idToken, partidaId } = params;
+  const { idToken, partidaId } = v.validar(esquemaAnular, params);
   const tenant = await getTenant(idToken);
 
   const [anulada] = await db

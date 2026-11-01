@@ -12,6 +12,8 @@ import {
   anularTransaccion,
   anularGrupo,
 } from "@/lib/actions/transacciones";
+import { MAX_CUOTAS } from "@/lib/limites";
+import { C } from "@/lib/colores";
 
 interface TransaccionItem {
   id: string;
@@ -38,17 +40,6 @@ type Vista = "historial" | "por_cobrar";
 type Frecuencia = "DIARIO" | "SEMANAL" | "QUINCENAL" | "MENSUAL" | "AL_VENCIMIENTO";
 type ModalTipo = null | "simple" | "cuotas";
 
-const C = {
-  fondo:      "#191510",
-  card:       "#221C15",
-  borde:      "rgba(201, 184, 150, 0.10)",
-  bordeSuave: "rgba(201, 184, 150, 0.18)",
-  texto:      "#EDE3CE",
-  muted:      "#8C826F",
-  tenue:      "#5A5345",
-  acento:     "#7A9B6E",
-  alerta:     "#D08B6A",
-};
 
 function fmt(valor: number) {
   return valor.toLocaleString("es-EC", { style: "currency", currency: "USD" });
@@ -288,6 +279,7 @@ export default function PartidaDetallePage() {
 
   async function handleSimular(e: React.FormEvent) {
     e.preventDefault();
+    if (!user) return;
     setErrorSim(null);
     const m = parseFloat(simMonto);
     const tasa = parseFloat(simTasa) || 0;
@@ -296,10 +288,14 @@ export default function PartidaDetallePage() {
     if (simFrecuencia !== "AL_VENCIMIENTO" && (isNaN(cuotas) || cuotas <= 0)) {
       setErrorSim("Ingresa un número de cuotas válido."); return;
     }
+    if (cuotas > MAX_CUOTAS) {
+      setErrorSim(`El máximo es ${MAX_CUOTAS} cuotas.`); return;
+    }
     setSimulando(true);
     try {
+      const idToken = await user.getIdToken();
       const resultado = await simularAmortizacion({
-        montoOriginal: m, tasaAnual: tasa,
+        idToken, montoOriginal: m, tasaAnual: tasa,
         totalCuotas: cuotas, frecuencia: simFrecuencia, fechaInicio: simFecha,
       });
       setPreview(resultado);
@@ -411,7 +407,7 @@ export default function PartidaDetallePage() {
         <div className="mb-4 flex gap-2">
           <button onClick={() => setModal("simple")}
             className="flex-1 rounded-lg py-2.5 text-sm font-medium"
-            style={{ backgroundColor: C.acento, color: "#171510" }}>
+            style={{ backgroundColor: C.acento, color: C.sobreAcento }}>
             + Transacción
           </button>
           <button onClick={() => setModal("cuotas")}
@@ -427,7 +423,7 @@ export default function PartidaDetallePage() {
             className="flex-1 rounded-lg py-2 text-sm font-medium"
             style={{
               backgroundColor: vista === "historial" ? C.acento : "transparent",
-              color: vista === "historial" ? "#171510" : C.muted,
+              color: vista === "historial" ? C.sobreAcento : C.muted,
               border: vista === "historial" ? "none" : `1px solid ${C.bordeSuave}`,
             }}>
             Historial
@@ -436,7 +432,7 @@ export default function PartidaDetallePage() {
             className="flex-1 rounded-lg py-2 text-sm font-medium"
             style={{
               backgroundColor: vista === "por_cobrar" ? C.acento : "transparent",
-              color: vista === "por_cobrar" ? "#171510" : C.muted,
+              color: vista === "por_cobrar" ? C.sobreAcento : C.muted,
               border: vista === "por_cobrar" ? "none" : `1px solid ${C.bordeSuave}`,
             }}>
             Por cobrar
@@ -472,7 +468,7 @@ export default function PartidaDetallePage() {
       {/* ── MODAL SIMPLE ── */}
       {modal === "simple" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+          style={{ backgroundColor: C.overlay }}
           onClick={() => setModal(null)}>
           <div onClick={e => e.stopPropagation()}
             className="w-full max-w-sm rounded-2xl border p-6"
@@ -487,7 +483,7 @@ export default function PartidaDetallePage() {
                   style={{
                     backgroundColor: tipoMov === t ? (t === "PRESTAMO" ? C.alerta : C.acento) : "transparent",
                     borderColor: C.bordeSuave,
-                    color: tipoMov === t ? "#171510" : C.texto,
+                    color: tipoMov === t ? C.sobreAcento : C.texto,
                   }}>
                   {t === "PRESTAMO" ? "Le presté" : "Me pagó"}
                 </button>
@@ -514,12 +510,12 @@ export default function PartidaDetallePage() {
               <div className="mt-1 flex gap-2">
                 <button type="button" onClick={() => setModal(null)}
                   className="flex-1 rounded-lg border py-2.5 text-sm"
-                  style={{ borderColor: C.bordeSuave, color: "#A89B81" }}>
+                  style={{ borderColor: C.bordeSuave, color: C.secundario }}>
                   Cancelar
                 </button>
                 <button type="submit" disabled={guardando}
                   className="flex-1 rounded-lg py-2.5 text-sm font-medium disabled:opacity-60"
-                  style={{ backgroundColor: C.acento, color: "#171510" }}>
+                  style={{ backgroundColor: C.acento, color: C.sobreAcento }}>
                   {guardando ? "Guardando..." : "Guardar"}
                 </button>
               </div>
@@ -531,7 +527,7 @@ export default function PartidaDetallePage() {
       {/* ── MODAL CUOTAS ── */}
       {modal === "cuotas" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto px-4 py-8"
-          style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+          style={{ backgroundColor: C.overlay }}
           onClick={() => { setModal(null); setPreview(null); }}>
           <div onClick={e => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border p-6"
@@ -582,12 +578,12 @@ export default function PartidaDetallePage() {
                 <div className="mt-1 flex gap-2">
                   <button type="button" onClick={() => setModal(null)}
                     className="flex-1 rounded-lg border py-2.5 text-sm"
-                    style={{ borderColor: C.bordeSuave, color: "#A89B81" }}>
+                    style={{ borderColor: C.bordeSuave, color: C.secundario }}>
                     Cancelar
                   </button>
                   <button type="submit" disabled={simulando}
                     className="flex-1 rounded-lg py-2.5 text-sm font-medium disabled:opacity-60"
-                    style={{ backgroundColor: C.acento, color: "#171510" }}>
+                    style={{ backgroundColor: C.acento, color: C.sobreAcento }}>
                     {simulando ? "Calculando..." : "Calcular"}
                   </button>
                 </div>
@@ -630,12 +626,12 @@ export default function PartidaDetallePage() {
                 <div className="mt-4 flex gap-2">
                   <button onClick={() => setPreview(null)}
                     className="flex-1 rounded-lg border py-2.5 text-sm"
-                    style={{ borderColor: C.bordeSuave, color: "#A89B81" }}>
+                    style={{ borderColor: C.bordeSuave, color: C.secundario }}>
                     Ajustar
                   </button>
                   <button onClick={handleConfirmarCuotas} disabled={confirmando}
                     className="flex-1 rounded-lg py-2.5 text-sm font-medium disabled:opacity-60"
-                    style={{ backgroundColor: C.acento, color: "#171510" }}>
+                    style={{ backgroundColor: C.acento, color: C.sobreAcento }}>
                     {confirmando ? "Creando..." : "Confirmar"}
                   </button>
                 </div>

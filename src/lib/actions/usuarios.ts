@@ -1,32 +1,31 @@
 // src/lib/actions/usuarios.ts
 "use server";
 
+import { z } from "zod";
 import { db } from "@/lib/db/client";
-import { tenants, usuarios, transacciones, partidas } from "@/lib/db/schema";
+import { usuarios } from "@/lib/db/schema";
 import { eq, ilike, and, desc, asc, sql, isNull } from "drizzle-orm";
-import { adminAuth } from "@/lib/firebase/admin";
+import { getTenant } from "@/lib/tenant";
+import * as v from "@/lib/validacion";
 
-// ================================================
-// HELPER: obtener tenant desde firebase token
-// ================================================
-export async function getTenant(idToken: string) {
-  const decoded = await adminAuth.verifyIdToken(idToken);
-  const tenant = await db.query.tenants.findFirst({
-    where: eq(tenants.firebaseUid, decoded.uid),
-  });
-  if (!tenant) throw new Error("Tenant no encontrado");
-  return tenant;
+export type OrdenUsuarios = (typeof v.ORDENES_USUARIOS)[number];
+
+// Escapa los comodines de LIKE para que la búsqueda sea literal
+function patronBusqueda(texto: string) {
+  return `%${texto.replace(/[\\%_]/g, "\\$&")}%`;
 }
-
-export type OrdenUsuarios =
-  | "nombre_asc"
-  | "creado_desc"
-  | "creado_asc"
-  | "ultimo_movimiento_desc";
 
 // ================================================
 // LISTAR USUARIOS
 // ================================================
+const esquemaListar = z.object({
+  idToken:  v.idToken,
+  busqueda: z.string().trim().max(100).default(""),
+  cursor:   z.number().int().min(0).max(100_000).default(0),
+  limite:   z.number().int().min(1).max(50).default(15),
+  orden:    z.enum(v.ORDENES_USUARIOS).default("creado_desc"),
+});
+
 export async function listarUsuarios(params: {
   idToken: string;
   busqueda?: string;
@@ -34,24 +33,17 @@ export async function listarUsuarios(params: {
   limite?: number;
   orden?: OrdenUsuarios;
 }) {
-  const {
-    idToken,
-    busqueda = "",
-    cursor = 0,
-    limite = 15,
-    orden = "creado_desc",
-  } = params;
+  const { idToken, busqueda, cursor, limite, orden } = v.validar(esquemaListar, params);
 
   const tenant = await getTenant(idToken);
-  const tenantId = tenant.id;
 
   const condiciones = [
     eq(usuarios.tenantId, tenant.id),
     isNull(usuarios.anuladoAt),
   ];
 
-  if (busqueda.trim()) {
-    condiciones.push(ilike(usuarios.nombre, `%${busqueda.trim()}%`));
+  if (busqueda) {
+    condiciones.push(ilike(usuarios.nombre, patronBusqueda(busqueda)));
   }
 
   if (orden === "ultimo_movimiento_desc") {
@@ -69,9 +61,9 @@ export async function listarUsuarios(params: {
             AND t.anulado_at IS NULL
         ) as "ultimoMovimiento"
       FROM usuarios u
-      WHERE u.tenant_id = ${condiciones[0] ? sql`${tenantId}` : sql`${tenantId}`}
+      WHERE u.tenant_id = ${tenant.id}
         AND u.anulado_at IS NULL
-        ${busqueda.trim() ? sql`AND u.nombre ILIKE ${'%' + busqueda.trim() + '%'}` : sql``}
+        ${busqueda ? sql`AND u.nombre ILIKE ${patronBusqueda(busqueda)}` : sql``}
       ORDER BY "ultimoMovimiento" DESC NULLS LAST
       LIMIT ${limite}
       OFFSET ${cursor}
@@ -114,12 +106,16 @@ export async function listarUsuarios(params: {
 // ================================================
 // CREAR USUARIO
 // ================================================
+const esquemaCrearUsuario = z.object({
+  idToken: v.idToken,
+  nombre:  v.nombre,
+});
+
 export async function crearUsuario(params: {
   idToken: string;
   nombre: string;
 }) {
-  const { idToken, nombre } = params;
-  if (!nombre.trim()) throw new Error("El nombre es obligatorio");
+  const { idToken, nombre } = v.validar(esquemaCrearUsuario, params);
 
   const tenant = await getTenant(idToken);
 
@@ -127,36 +123,8 @@ export async function crearUsuario(params: {
     .insert(usuarios)
     .values({
       tenantId:     tenant.id,
-      nombre:       nombre.trim(),
-      tokenPublico: crypto.randomUUID(),
-    })
-    .returning();
-
-  return nuevo;
-}
-
-// ================================================
-// CREAR TENANT (registro de nuevo usuario)
-// ================================================
-export async function crearTenant(params: {
-  firebaseUid: string;
-  nombre: string;
-  email: string;
-}) {
-  const { firebaseUid, nombre, email } = params;
-
-  const existente = await db.query.tenants.findFirst({
-    where: eq(tenants.firebaseUid, firebaseUid),
-  });
-
-  if (existente) return existente;
-
-  const [nuevo] = await db
-    .insert(tenants)
-    .values({
-      firebaseUid,
       nombre,
-      email,
+      tokenPublico: crypto.randomUUID(),
     })
     .returning();
 

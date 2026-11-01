@@ -1,10 +1,12 @@
 // src/lib/actions/transacciones.ts
 "use server";
 
+import { z } from "zod";
 import { db } from "@/lib/db/client";
 import { partidas, gruposPrestamo, transacciones } from "@/lib/db/schema";
-import { eq, and, isNull, asc, desc } from "drizzle-orm";
-import { getTenant } from "./usuarios";
+import { eq, and, isNull, desc } from "drizzle-orm";
+import { getTenant } from "@/lib/tenant";
+import * as v from "@/lib/validacion";
 
 // ================================================
 // HELPER: verificar que la partida pertenece al tenant
@@ -24,11 +26,16 @@ async function getPartida(tenantId: string, partidaId: string) {
 // ================================================
 // LISTAR TRANSACCIONES DE UNA PARTIDA
 // ================================================
+const esquemaListar = z.object({
+  idToken:   v.idToken,
+  partidaId: v.id,
+});
+
 export async function listarTransacciones(params: {
   idToken: string;
   partidaId: string;
 }) {
-  const { idToken, partidaId } = params;
+  const { idToken, partidaId } = v.validar(esquemaListar, params);
   const tenant = await getTenant(idToken);
   await getPartida(tenant.id, partidaId);
 
@@ -52,6 +59,15 @@ export async function listarTransacciones(params: {
 // ================================================
 // AGREGAR TRANSACCION SIMPLE (pago o prestamo sin cuotas)
 // ================================================
+const esquemaAgregar = z.object({
+  idToken:         v.idToken,
+  partidaId:       v.id,
+  tipo:            v.tipoTransaccion,
+  monto:           v.monto,
+  descripcion:     v.descripcion,
+  fechaReferencia: v.fecha,
+});
+
 export async function agregarTransaccion(params: {
   idToken: string;
   partidaId: string;
@@ -60,9 +76,8 @@ export async function agregarTransaccion(params: {
   descripcion: string;
   fechaReferencia: string;
 }) {
-  const { idToken, partidaId, tipo, monto, descripcion, fechaReferencia } = params;
-
-  if (monto <= 0) throw new Error("El monto debe ser mayor a cero");
+  const { idToken, partidaId, tipo, monto, descripcion, fechaReferencia } =
+    v.validar(esquemaAgregar, params);
 
   const tenant = await getTenant(idToken);
   await getPartida(tenant.id, partidaId);
@@ -73,7 +88,7 @@ export async function agregarTransaccion(params: {
       partidaId,
       tipo,
       monto:           monto.toFixed(2),
-      descripcion:     descripcion.trim() || null,
+      descripcion:     descripcion || null,
       fechaReferencia, // date string YYYY-MM-DD
     })
     .returning();
@@ -84,6 +99,20 @@ export async function agregarTransaccion(params: {
 // ================================================
 // AGREGAR PRESTAMO CON CUOTAS (sistema frances)
 // ================================================
+const esquemaAmortizacion = z.object({
+  montoOriginal: v.monto,
+  tasaAnual:     v.tasaAnual,
+  totalCuotas:   v.totalCuotas,
+  frecuencia:    v.frecuencia,
+  fechaInicio:   v.fecha,
+});
+
+const esquemaPrestamoCuotas = esquemaAmortizacion.extend({
+  idToken:     v.idToken,
+  partidaId:   v.id,
+  descripcion: v.descripcion,
+});
+
 export async function agregarPrestamoCuotas(params: {
   idToken: string;
   partidaId: string;
@@ -103,10 +132,7 @@ export async function agregarPrestamoCuotas(params: {
     totalCuotas,
     frecuencia,
     fechaInicio,
-  } = params;
-
-  if (montoOriginal <= 0) throw new Error("El monto debe ser mayor a cero");
-  if (totalCuotas <= 0)   throw new Error("El número de cuotas debe ser mayor a cero");
+  } = v.validar(esquemaPrestamoCuotas, params);
 
   const tenant = await getTenant(idToken);
   await getPartida(tenant.id, partidaId);
@@ -120,44 +146,50 @@ export async function agregarPrestamoCuotas(params: {
     fechaInicio,
   });
 
-  // Crear el grupo
-  const [grupo] = await db
-    .insert(gruposPrestamo)
-    .values({
-      partidaId,
-      descripcion:   descripcion.trim() || null,
-      montoOriginal: montoOriginal.toFixed(2),
-      tasaAnual:     tasaAnual.toFixed(2),
-      totalCuotas,
-      frecuencia,
-    })
-    .returning();
+  // Grupo y cuotas se guardan juntos o no se guarda nada
+  return db.transaction(async (tx) => {
+    const [grupo] = await tx
+      .insert(gruposPrestamo)
+      .values({
+        partidaId,
+        descripcion:   descripcion || null,
+        montoOriginal: montoOriginal.toFixed(2),
+        tasaAnual:     tasaAnual.toFixed(2),
+        totalCuotas,
+        frecuencia,
+      })
+      .returning();
 
-  // Insertar todas las cuotas
-  await db.insert(transacciones).values(
-    filas.map((f) => ({
-      partidaId,
-      grupoId:         grupo.id,
-      tipo:            "PRESTAMO" as const,
-      monto:           f.cuota.toFixed(2),
-      descripcion:     `${descripcion ? descripcion + " - " : ""}Cuota ${f.numero}/${totalCuotas}`,
-      fechaReferencia: f.fecha,
-      numeroCuota:     f.numero,
-      totalCuotas,
-    }))
-  );
+    await tx.insert(transacciones).values(
+      filas.map((f) => ({
+        partidaId,
+        grupoId:         grupo.id,
+        tipo:            "PRESTAMO" as const,
+        monto:           f.cuota.toFixed(2),
+        descripcion:     `${descripcion ? descripcion + " - " : ""}Cuota ${f.numero}/${totalCuotas}`,
+        fechaReferencia: f.fecha,
+        numeroCuota:     f.numero,
+        totalCuotas,
+      }))
+    );
 
-  return { grupo, cuotas: filas.length };
+    return { grupo, cuotas: filas.length };
+  });
 }
 
 // ================================================
 // ANULAR TRANSACCION SIMPLE
 // ================================================
+const esquemaAnularTransaccion = z.object({
+  idToken:       v.idToken,
+  transaccionId: v.id,
+});
+
 export async function anularTransaccion(params: {
   idToken: string;
   transaccionId: string;
 }) {
-  const { idToken, transaccionId } = params;
+  const { idToken, transaccionId } = v.validar(esquemaAnularTransaccion, params);
   const tenant = await getTenant(idToken);
 
   const transaccion = await db.query.transacciones.findFirst({
@@ -188,11 +220,16 @@ export async function anularTransaccion(params: {
   return anulada;
 }
 
+const esquemaAnularGrupo = z.object({
+  idToken: v.idToken,
+  grupoId: v.id,
+});
+
 export async function anularGrupo(params: {
   idToken: string;
   grupoId: string;
 }) {
-  const { idToken, grupoId } = params;
+  const { idToken, grupoId } = v.validar(esquemaAnularGrupo, params);
   const tenant = await getTenant(idToken);
 
   const grupo = await db.query.gruposPrestamo.findFirst({
@@ -213,39 +250,50 @@ export async function anularGrupo(params: {
     throw new Error("Solo puedes anular grupos en los primeros 5 minutos de creados");
   }
 
-  await db
-    .update(transacciones)
-    .set({ anuladoAt: new Date() })
-    .where(and(
-      eq(transacciones.grupoId, grupoId),
-      isNull(transacciones.anuladoAt)
-    ));
+  // Cuotas y grupo se anulan juntos o no se anula nada
+  return db.transaction(async (tx) => {
+    await tx
+      .update(transacciones)
+      .set({ anuladoAt: new Date() })
+      .where(and(
+        eq(transacciones.grupoId, grupoId),
+        isNull(transacciones.anuladoAt)
+      ));
 
-  const [anulado] = await db
-    .update(gruposPrestamo)
-    .set({ anuladoAt: new Date() })
-    .where(eq(gruposPrestamo.id, grupoId))
-    .returning();
+    const [anulado] = await tx
+      .update(gruposPrestamo)
+      .set({ anuladoAt: new Date() })
+      .where(eq(gruposPrestamo.id, grupoId))
+      .returning();
 
-  return anulado;
+    return anulado;
+  });
 }
 
 // ================================================
 // SIMULAR AMORTIZACION (sin guardar, para preview)
 // ================================================
+const esquemaSimular = esquemaAmortizacion.extend({
+  idToken: v.idToken,
+});
+
 export async function simularAmortizacion(params: {
+  idToken: string;
   montoOriginal: number;
   tasaAnual: number;
   totalCuotas: number;
   frecuencia: "DIARIO" | "SEMANAL" | "QUINCENAL" | "MENSUAL" | "AL_VENCIMIENTO";
   fechaInicio: string;
 }) {
+  const { idToken, ...datos } = v.validar(esquemaSimular, params);
+  await getTenant(idToken);
+
   const filas = calcularAmortizacion({
-    monto: params.montoOriginal, // <-- corregido
-    tasaAnual: params.tasaAnual,
-    totalCuotas: params.totalCuotas,
-    frecuencia: params.frecuencia,
-    fechaInicio: params.fechaInicio,
+    monto:       datos.montoOriginal,
+    tasaAnual:   datos.tasaAnual,
+    totalCuotas: datos.totalCuotas,
+    frecuencia:  datos.frecuencia,
+    fechaInicio: datos.fechaInicio,
   });
   const totalIntereses = filas.reduce((acc, f) => acc + f.interes, 0);
   return {

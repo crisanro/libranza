@@ -4,8 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
-import Link from "next/link";
 import { AuthShell } from "@/components/auth-shell";
+
+const claseLabel = "text-xs font-medium uppercase tracking-wide text-secundario";
+const claseInput =
+  "rounded-lg border border-borde-suave bg-transparent px-3 py-2.5 text-sm text-texto outline-none transition-colors placeholder:text-tenue focus:border-acento";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -45,30 +48,17 @@ export default function LoginPage() {
 
   return (
     <AuthShell>
-      <div
-        className="w-full max-w-sm rounded-2xl border p-8"
-        style={{
-          backgroundColor: "#221C15",
-          borderColor: "rgba(201, 184, 150, 0.12)",
-        }}
-      >
-        <h1
-          className="text-xl"
-          style={{ fontFamily: "var(--font-fraunces)", color: "#EDE3CE" }}
-        >
+      <div className="w-full max-w-sm rounded-2xl border border-borde bg-tarjeta p-8">
+        <h1 className="text-xl text-texto" style={{ fontFamily: "var(--font-fraunces)" }}>
           Bienvenido de nuevo
         </h1>
-        <p className="mt-1 text-sm" style={{ color: "#8C826F" }}>
+        <p className="mt-1 text-sm text-apagado">
           Ingresa para revisar tus cuentas.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="email"
-              className="text-xs font-medium uppercase tracking-wide"
-              style={{ color: "#A89B81" }}
-            >
+            <label htmlFor="email" className={claseLabel}>
               Correo
             </label>
             <input
@@ -78,27 +68,12 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none transition-colors"
-              style={{
-                borderColor: "rgba(201, 184, 150, 0.18)",
-                color: "#EDE3CE",
-              }}
-              onFocus={(e) =>
-                (e.currentTarget.style.borderColor = "#7A9B6E")
-              }
-              onBlur={(e) =>
-                (e.currentTarget.style.borderColor =
-                  "rgba(201, 184, 150, 0.18)")
-              }
+              className={claseInput}
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="password"
-              className="text-xs font-medium uppercase tracking-wide"
-              style={{ color: "#A89B81" }}
-            >
+            <label htmlFor="password" className={claseLabel}>
               Contraseña
             </label>
             <input
@@ -107,23 +82,12 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none transition-colors"
-              style={{
-                borderColor: "rgba(201, 184, 150, 0.18)",
-                color: "#EDE3CE",
-              }}
-              onFocus={(e) =>
-                (e.currentTarget.style.borderColor = "#7A9B6E")
-              }
-              onBlur={(e) =>
-                (e.currentTarget.style.borderColor =
-                  "rgba(201, 184, 150, 0.18)")
-              }
+              className={claseInput}
             />
           </div>
 
           {error && (
-            <p className="text-sm" role="alert" style={{ color: "#D08B6A" }}>
+            <p className="text-sm text-alerta" role="alert">
               {error}
             </p>
           )}
@@ -131,19 +95,11 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 rounded-lg py-2.5 text-sm font-medium transition-opacity disabled:opacity-60"
-            style={{ backgroundColor: "#7A9B6E", color: "#171510" }}
+            className="mt-2 rounded-lg bg-acento py-2.5 text-sm font-medium text-sobre-acento transition-opacity disabled:opacity-60"
           >
             {loading ? "Ingresando..." : "Ingresar"}
           </button>
         </form>
-
-        <p className="mt-6 text-center text-sm" style={{ color: "#8C826F" }}>
-          ¿No tienes cuenta?{" "}
-          <Link href="/registro" className="underline" style={{ color: "#C9B896" }}>
-            Regístrate
-          </Link>
-        </p>
       </div>
     </AuthShell>
   );

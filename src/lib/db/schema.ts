@@ -7,6 +7,7 @@ import {
   timestamp,
   numeric,
   integer,
+  bigint,
   date,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
@@ -77,6 +78,16 @@ export const transacciones = pgTable("transacciones", {
   totalCuotas:     integer("total_cuotas"),
   anuladoAt:       timestamp("anulado_at", { withTimezone: true }),
   createdAt:       timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
+// ================================================
+// KEEPALIVE (la escribe el servicio keepalive de docker-compose
+// para que Supabase no pause el proyecto; la app no la usa)
+// ================================================
+export const keepalive = pgTable("keepalive", {
+  id:          bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  valor:       integer("valor").notNull(),
+  ejecutadoAt: timestamp("ejecutado_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // ================================================

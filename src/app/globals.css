@@ -5,6 +5,22 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* Paleta de la app (valores en :root) */
+  --color-fondo: var(--fondo);
+  --color-tarjeta: var(--tarjeta);
+  --color-borde: var(--borde);
+  --color-borde-suave: var(--borde-suave);
+  --color-texto: var(--texto);
+  --color-marca: var(--marca);
+  --color-secundario: var(--secundario);
+  --color-apagado: var(--apagado);
+  --color-tenue: var(--tenue);
+  --color-dorado: var(--dorado);
+  --color-acento: var(--acento);
+  --color-sobre-acento: var(--sobre-acento);
+  --color-alerta: var(--alerta);
+  --color-overlay: var(--overlay);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -49,8 +65,28 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* ── Paleta de la app ──
+     Contraste mínimo de texto pequeño (WCAG AA) es 4.5:1. Medido sobre
+     --tarjeta, que es el fondo más claro donde va texto:
+     texto 13.2 · secundario 6.2 · apagado 5.6 · tenue 4.6 · acento 5.4 · alerta 6.1 */
+  --fondo: #191510;
+  --tarjeta: #221C15;
+  --borde: rgba(201, 184, 150, 0.10);
+  --borde-suave: rgba(201, 184, 150, 0.18);
+  --texto: #EDE3CE;
+  --marca: #E7DCC4;
+  --secundario: #A89B81;
+  --apagado: #9E9481;
+  --tenue: #8D8574;
+  --dorado: #C9B896;
+  --acento: #7A9B6E;
+  --sobre-acento: #171510;
+  --alerta: #D08B6A;
+  --overlay: rgba(0, 0, 0, 0.55);
+
+  /* La app es oscura: que el fondo de la página (overscroll, carga) también lo sea */
+  --background: var(--fondo);
+  --foreground: var(--texto);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -60,7 +96,7 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: var(--apagado);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);

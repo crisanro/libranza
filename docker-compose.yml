@@ -8,14 +8,81 @@ services:
         - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
         - NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
     restart: unless-stopped
+    init: true
     ports:
       - "3001:3000"
     environment:
       - NODE_ENV=production
+      # Node aborta antes de que el contenedor llegue a su límite de RAM;
+      # Docker lo reinicia (restart: unless-stopped) y el host no se entera
+      - NODE_OPTIONS=--max-old-space-size=384
       - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_CA_CERT=${DATABASE_CA_CERT:-}
+      - ALLOWED_EMAILS=${ALLOWED_EMAILS}
       - NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY}
       - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
       - NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
       - FIREBASE_ADMIN_PROJECT_ID=${FIREBASE_ADMIN_PROJECT_ID}
       - FIREBASE_ADMIN_CLIENT_EMAIL=${FIREBASE_ADMIN_CLIENT_EMAIL}
       - FIREBASE_ADMIN_PRIVATE_KEY=${FIREBASE_ADMIN_PRIVATE_KEY}
+    # Límites: si la app se dispara, Docker la mata y la reinicia
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 1.0
+    pids_limit: 256
+    # Endurecimiento: solo lectura, sin privilegios extra
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+      - /app/.next/cache:size=64m,uid=1000,gid=1000
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  # Supabase pausa los proyectos gratuitos tras 7 días sin actividad.
+  # Este servicio escribe en la tabla `keepalive` al arrancar y cada 5 días.
+  keepalive:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    init: true
+    user: postgres
+    entrypoint: ["sh", "/keepalive/keepalive.sh"]
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - INTERVALO_DIAS=5
+    volumes:
+      - ./keepalive:/keepalive:ro
+    mem_limit: 64m
+    cpus: 0.25
+    pids_limit: 32
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  # Respaldo diario de la BD en ./respaldos (el plan gratuito de Supabase no
+  # da respaldos descargables). Corre con el uid del dueño de la carpeta.
+  respaldo:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    init: true
+    user: "1000:1000"
+    entrypoint: ["sh", "/respaldo/respaldo.sh"]
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - RESPALDO_DIAS=14
+    volumes:
+      - ./respaldo:/respaldo:ro
+      - ./respaldos:/respaldos
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 32
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

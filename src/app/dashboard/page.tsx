@@ -7,6 +7,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
 import { useAuth } from "@/lib/firebase/auth-context";
 import { listarUsuarios, crearUsuario, OrdenUsuarios } from "@/lib/actions/usuarios";
+import { C } from "@/lib/colores";
 
 interface UsuarioItem {
   id: string;
@@ -15,16 +16,6 @@ interface UsuarioItem {
   createdAt: Date | null;
 }
 
-const C = {
-  fondo:       "#191510",
-  card:        "#221C15",
-  borde:       "rgba(201, 184, 150, 0.10)",
-  bordeSuave:  "rgba(201, 184, 150, 0.18)",
-  texto:       "#EDE3CE",
-  muted:       "#8C826F",
-  tenue:       "#5A5345",
-  acento:      "#7A9B6E",
-};
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
@@ -129,7 +120,7 @@ export default function DashboardPage() {
 
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
-          <span className="text-2xl italic" style={{ fontFamily: "var(--font-fraunces)", color: "#E7DCC4" }}>
+          <span className="text-2xl italic" style={{ fontFamily: "var(--font-fraunces)", color: C.marca }}>
             Libranza
           </span>
           <button onClick={() => signOut(auth).then(() => router.push("/login"))}
@@ -150,7 +141,7 @@ export default function DashboardPage() {
           />
           <button onClick={() => setMostrarModal(true)}
             className="shrink-0 rounded-lg px-4 py-2.5 text-sm font-medium"
-            style={{ backgroundColor: C.acento, color: "#171510" }}>
+            style={{ backgroundColor: C.acento, color: C.sobreAcento }}>
             + Agregar
           </button>
         </div>
@@ -162,7 +153,7 @@ export default function DashboardPage() {
           </span>
           <select value={orden} onChange={e => setOrden(e.target.value as OrdenUsuarios)}
             className="rounded-lg border bg-transparent px-3 py-1.5 text-xs outline-none"
-            style={{ borderColor: C.bordeSuave, color: "#A89B81", backgroundColor: C.fondo }}>
+            style={{ borderColor: C.bordeSuave, color: C.secundario, backgroundColor: C.fondo }}>
             <option value="creado_desc">Más recientes</option>
             <option value="creado_asc">Más antiguos</option>
             <option value="nombre_asc">Alfabético (A-Z)</option>
@@ -201,7 +192,7 @@ export default function DashboardPage() {
       {/* Modal agregar */}
       {mostrarModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
-          style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+          style={{ backgroundColor: C.overlay }}
           onClick={() => setMostrarModal(false)}>
           <div onClick={e => e.stopPropagation()}
             className="w-full max-w-sm rounded-2xl border p-6"
@@ -214,16 +205,16 @@ export default function DashboardPage() {
                 value={nombreNuevo} onChange={e => setNombreNuevo(e.target.value)}
                 className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
                 style={{ borderColor: C.bordeSuave, color: C.texto }} />
-              {errorModal && <p className="text-sm" style={{ color: "#D08B6A" }}>{errorModal}</p>}
+              {errorModal && <p className="text-sm" style={{ color: C.alerta }}>{errorModal}</p>}
               <div className="mt-1 flex gap-2">
                 <button type="button" onClick={() => setMostrarModal(false)}
                   className="flex-1 rounded-lg border py-2.5 text-sm"
-                  style={{ borderColor: C.bordeSuave, color: "#A89B81" }}>
+                  style={{ borderColor: C.bordeSuave, color: C.secundario }}>
                   Cancelar
                 </button>
                 <button type="submit" disabled={creando}
                   className="flex-1 rounded-lg py-2.5 text-sm font-medium disabled:opacity-60"
-                  style={{ backgroundColor: C.acento, color: "#171510" }}>
+                  style={{ backgroundColor: C.acento, color: C.sobreAcento }}>
                   {creando ? "Guardando..." : "Guardar"}
                 </button>
               </div>

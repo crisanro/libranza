@@ -1,16 +1,13 @@
 // src/app/c/[token]/page.tsx
-import { obtenerEstadoPublico } from "@/lib/actions/publico";
+import type { Metadata } from "next";
+import { obtenerEstadoPublico } from "@/lib/publico";
 import { notFound } from "next/navigation";
+import { C } from "@/lib/colores";
 
-const C = {
-  fondo:   "#191510",
-  card:    "#221C15",
-  borde:   "rgba(201, 184, 150, 0.12)",
-  texto:   "#EDE3CE",
-  muted:   "#8C826F",
-  tenue:   "#5A5345",
-  acento:  "#7A9B6E",
-  alerta:  "#D08B6A",
+// Los estados de cuenta son privados: que ningún buscador los indexe
+export const metadata: Metadata = {
+  title: "Estado de cuenta",
+  robots: { index: false, follow: false },
 };
 
 function fmt(valor: number) {
